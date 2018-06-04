@@ -14,55 +14,61 @@ const (
 	logFilepath = "/tmp/debug.log"
 )
 
-func Print(a ...interface{}) {
-	f, err := os.OpenFile(logFilepath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		panic(err)
-	}
-	defer f.Close()
+var ch = make(chan string, 1024)
 
+func init() {
+	go func() {
+		f, err := os.OpenFile(logFilepath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			panic(err)
+		}
+		defer f.Close()
+
+		for line := range ch {
+			if _, err := fmt.Fprint(f, line); err != nil {
+				panic(err)
+			}
+		}
+	}()
+}
+
+func Print(a ...interface{}) {
 	pid := os.Getpid()
 	goid := getGoId()
 	_, file, line, _ := runtime.Caller(1)
-	fmt.Fprintf(f, "[%s %d:%d %s:%d] ", time.Now().Format("2006-01-02 15:04:05.000000"), pid, goid, chopPath(file), line)
 
-	if _, err := fmt.Fprint(f, a...); err != nil {
-		panic(err)
-	}
+	buf := bytes.NewBuffer(make([]byte, 0))
+	fmt.Fprintf(buf, "[%s %d:%d %s:%d] ",
+		time.Now().Format("2006-01-02 15:04:05.000000"), pid, goid, chopPath(file), line)
+	fmt.Fprint(buf, a...)
+
+	ch <- buf.String()
 }
 
 func Printf(format string, a ...interface{}) {
-	f, err := os.OpenFile(logFilepath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		panic(err)
-	}
-	defer f.Close()
-
 	pid := os.Getpid()
 	goid := getGoId()
 	_, file, line, _ := runtime.Caller(1)
-	fmt.Fprintf(f, "[%s %d:%d %s:%d] ", time.Now().Format("2006-01-02 15:04:05.000000"), pid, goid, chopPath(file), line)
 
-	if _, err := fmt.Fprintf(f, format, a...); err != nil {
-		panic(err)
-	}
+	buf := bytes.NewBuffer(make([]byte, 0))
+	fmt.Fprintf(buf, "[%s %d:%d %s:%d] ",
+		time.Now().Format("2006-01-02 15:04:05.000000"), pid, goid, chopPath(file), line)
+	fmt.Fprintf(buf, format, a...)
+
+	ch <- buf.String()
 }
 
 func Println(a ...interface{}) {
-	f, err := os.OpenFile(logFilepath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		panic(err)
-	}
-	defer f.Close()
-
 	pid := os.Getpid()
 	goid := getGoId()
 	_, file, line, _ := runtime.Caller(1)
-	fmt.Fprintf(f, "[%s %d:%d %s:%d] ", time.Now().Format("2006-01-02 15:04:05.000000"), pid, goid, chopPath(file), line)
 
-	if _, err := fmt.Fprintln(f, a...); err != nil {
-		panic(err)
-	}
+	buf := bytes.NewBuffer(make([]byte, 0))
+	fmt.Fprintf(buf, "[%s %d:%d %s:%d] ",
+		time.Now().Format("2006-01-02 15:04:05.000000"), pid, goid, chopPath(file), line)
+	fmt.Fprintln(buf, a...)
+
+	ch <- buf.String()
 }
 
 func chopPath(original string) string {
